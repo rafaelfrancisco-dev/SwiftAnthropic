@@ -7,6 +7,7 @@
 
 import Foundation
 
+#if !os(Linux)
 private let aiproxySecureDelegate = AIProxyCertificatePinningDelegate()
 
 
@@ -111,4 +112,4 @@ struct AIProxyService: AnthropicService {
    }
 }
 
-
+#endif

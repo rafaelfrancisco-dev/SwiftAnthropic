@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import FoundationNetworking
 
 // MARK: Error
 
@@ -197,7 +198,110 @@ extension AnthropicService {
          throw APIError.jsonDecodingFailure(description: error.localizedDescription)
       }
    }
-   
+
+   #if os(Linux)
+   /// Asynchronously fetches a stream of decodable data types from Anthropic's API for chat completions.
+   ///
+   /// This method is primarily used for streaming chat completions.
+   ///
+   /// - Parameters:
+   ///   - type: The `Decodable` type that each streamed response should be decoded to.
+   ///   - request: The `URLRequest` describing the API request.
+   ///   - debugEnabled: If true the service will print events on DEBUG builds.
+   /// - Throws: An error if the request fails or if decoding fails.
+   /// - Returns: An asynchronous throwing stream of the specified decodable type.
+   public func fetchStream<T: Decodable>(
+      type: T.Type,
+      with request: URLRequest,
+      debugEnabled: Bool)
+      async throws -> AsyncThrowingStream<T, Error>
+   {
+      if debugEnabled {
+         printCurlCommand(request)
+      }
+      
+      let (data, response) = try await session.data(for: request)
+      guard let httpResponse = response as? HTTPURLResponse else {
+         throw APIError.requestFailed(description: "invalid response unable to get a valid HTTPURLResponse")
+      }
+      if debugEnabled {
+         printHTTPURLResponse(httpResponse)
+      }
+      guard httpResponse.statusCode == 200 else {
+         var errorMessage = "status code \(httpResponse.statusCode)"
+         do {
+            let data = data.reduce(into: Data()) { data, byte in
+               data.append(byte)
+            }
+            let errorResponse = try decoder.decode(ErrorResponse.self, from: data)
+            errorMessage += errorResponse.error.message
+         } catch {
+            // If decoding fails, proceed with a general error message
+            errorMessage = "status code \(httpResponse.statusCode)"
+         }
+         throw APIError.responseUnsuccessful(description: errorMessage)
+      }
+      return AsyncThrowingStream { continuation in
+         let task = Task {
+            do {
+               for line in data.lines {
+                  // TODO: Test the `event` line
+                  if line.hasPrefix("data:"),
+                     let data = line.dropFirst(5).data(using: .utf8) {
+                     #if DEBUG
+                     if debugEnabled {
+                        print("DEBUG JSON STREAM LINE = \(try JSONSerialization.jsonObject(with: data, options: .allowFragments) as? [String: Any])")
+                     }
+                     #endif
+                     do {
+                        let decoded = try self.decoder.decode(T.self, from: data)
+                        continuation.yield(decoded)
+                     } catch let DecodingError.keyNotFound(key, context) {
+                        let debug = "Key '\(key.stringValue)' not found: \(context.debugDescription)"
+                        let codingPath = "codingPath: \(context.codingPath)"
+                        let debugMessage = debug + codingPath
+                     #if DEBUG
+                        if debugEnabled {
+                           print(debugMessage)
+                        }
+                     #endif
+                        throw APIError.dataCouldNotBeReadMissingData(description: debugMessage)
+                     } catch {
+                     #if DEBUG
+                        if debugEnabled {
+                           debugPrint("CONTINUATION ERROR DECODING \(error.localizedDescription)")
+                        }
+                     #endif
+                        continuation.finish(throwing: error)
+                     }
+                  }
+               }
+               continuation.finish()
+            } catch let DecodingError.keyNotFound(key, context) {
+               let debug = "Key '\(key.stringValue)' not found: \(context.debugDescription)"
+               let codingPath = "codingPath: \(context.codingPath)"
+               let debugMessage = debug + codingPath
+               #if DEBUG
+               if debugEnabled {
+                  print(debugMessage)
+               }
+               #endif
+               throw APIError.dataCouldNotBeReadMissingData(description: debugMessage)
+            } catch {
+               #if DEBUG
+               if debugEnabled {
+                  print("CONTINUATION ERROR DECODING \(error.localizedDescription)")
+               }
+               #endif
+               continuation.finish(throwing: error)
+            }
+         }
+         continuation.onTermination = { @Sendable _ in
+            task.cancel()
+         }
+      }
+   }
+   #else 
    /// Asynchronously fetches a stream of decodable data types from Anthropic's API for chat completions.
    ///
    /// This method is primarily used for streaming chat completions.
@@ -299,6 +403,7 @@ extension AnthropicService {
          }
       }
    }
+   #endif
    
    // MARK: Debug Helpers
 

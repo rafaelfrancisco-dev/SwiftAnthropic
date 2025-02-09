@@ -6,9 +6,9 @@
 //
 
 import Foundation
+import FoundationNetworking
 
 struct DefaultAnthropicService: AnthropicService {
-
    let session: URLSession
    let decoder: JSONDecoder
    let apiKey: String

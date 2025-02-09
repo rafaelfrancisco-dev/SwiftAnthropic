@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "oslog",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/rafaelfrancisco-dev/OSLog.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "12b8d4e1a6e9f6621ae0a15d7126c127ac869dca"
+      }
+    }
+  ],
+  "version" : 2
+}

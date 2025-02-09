@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import FoundationNetworking
 import OSLog
 
 private let aiproxyLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "UnknownApp",
@@ -53,6 +54,7 @@ private let aiproxyLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "U
 ///
 /// If you encounter other calls in the wild that do not invoke `urlSession:didReceiveChallenge:` on this class,
 /// please report them to me.
+#if !os(Linux)
 final class AIProxyCertificatePinningDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
 
    func urlSession(
@@ -179,3 +181,5 @@ private func getServerCert(secTrust: SecTrust) -> SecCertificate? {
         return SecTrustGetCertificateAtIndex(secTrust, 0);
     }
 }
+
+#endif

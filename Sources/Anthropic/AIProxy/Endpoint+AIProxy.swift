@@ -6,8 +6,11 @@
 //
 
 import Foundation
+import FoundationNetworking
 import OSLog
-import DeviceCheck
+#if canImport(DeviceCheck)
+    import DeviceCheck
+#endif
 #if canImport(UIKit)
     import UIKit
 #endif
@@ -79,6 +82,9 @@ extension Endpoint {
 /// Gets a device check token for use in your calls to aiproxy.
 /// The device token may be nil when targeting the iOS simulator.
 private func getDeviceCheckToken() async -> String? {
+    #if os(Linux)
+    return nil
+    #else
     guard DCDevice.current.isSupported else {
         if ProcessInfo.processInfo.environment["AIPROXY_DEVICE_CHECK_BYPASS"] == nil {
             aiproxyLogger.warning("\(deviceCheckWarning, privacy: .public)")
@@ -93,6 +99,7 @@ private func getDeviceCheckToken() async -> String? {
         aiproxyLogger.error("Could not create DeviceCheck token. Are you using an explicit bundle identifier?")
         return nil
     }
+    #endif
 }
 
 /// Get a unique ID for this client
